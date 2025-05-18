@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="Access real-time weather forecasts with local and international coverage." />
+  <title>SmartWeather | Xavier's Forecast</title>
+  <link rel="canonical" href="https://yourdomain.com/world-weather" />
+  <meta property="og:title" content="SmartWeather | Xavier's Forecast">
+  <meta property="og:description" content="Reliable weather forecasts and 5-day outlooks worldwide.">
+  <meta property="og:image" content="https://yourdomain.com/images/weather-thumbnail.png">
+  <meta property="og:url" content="https://yourdomain.com/world-weather">
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="SmartWeather - Forecast by Xavier" />
+  <meta name="twitter:description" content="Get weather updates and forecasts across the globe." />
+  <meta name="twitter:image" content="https://yourdomain.com/images/weather-thumbnail.png" />
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+
+<body class="bg-gradient-to-br from-sky-100 to-blue-300 min-h-screen flex items-center justify-center p-6">
+
+  <main class="bg-white rounded-3xl shadow-2xl w-full max-w-xl p-8 space-y-8">
+    <header class="text-center">
+      <h1 class="text-4xl font-bold text-blue-900">🌦️ SmartWeather by Xavier</h1>
+      <p class="text-gray-600">Developed with ❤️ by Xavier Full Stack</p>
+    </header>
+
+    <div id="error-message" class="hidden text-red-500 text-center font-semibold"></div>
+
+    <input
+      id="city-input"
+      type="text"
+      placeholder="Type a city name..."
+      class="w-full px-4 py-3 border border-gray-400 rounded-md focus:ring-2 focus:ring-blue-500 focus:outline-none"
+    />
+
+    <select id="recent-cities" class="w-full px-4 py-3 border border-gray-300 rounded text-gray-600 focus:ring-2 focus:ring-indigo-500 focus:outline-none">
+      <option disabled selected>Select previously searched city</option>
+    </select>
+
+    <div class="flex flex-col sm:flex-row gap-4">
+      <button id="search-btn" class="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-3 rounded-md transition-all">
+        Search Weather
+      </button>
+      <button id="location-btn" class="flex-1 bg-green-600 hover:bg-green-700 text-white py-3 rounded-md transition-all">
+        Detect Location
+      </button>
+    </div>
+
+    <section id="weather-display" class="text-center text-gray-800"></section>
+    <section id="forecast-display" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 mt-6"></section>
+  </main>
+
+  <script>
+    const apiKey = '6ead48b9b18f42e49ae152444251705';
+    const baseUrl = 'https://api.weatherapi.com/v1';
+
+    const cityInput = document.getElementById('city-input');
+    const weatherDisplay = document.getElementById('weather-display');
+    const forecastDisplay = document.getElementById('forecast-display');
+    const errorMessage = document.getElementById('error-message');
+    const recentCitiesDropdown = document.getElementById('recent-cities');
+
+    function showError(msg) {
+      errorMessage.textContent = msg;
+      errorMessage.classList.remove('hidden');
+      setTimeout(() => errorMessage.classList.add('hidden'), 4000);
+    }
+
+    function clearDisplay() {
+      weatherDisplay.innerHTML = '';
+      forecastDisplay.innerHTML = '';
+    }
+
+    function saveCityToStorage(city) {
+      let cities = JSON.parse(localStorage.getItem('recentCities')) || [];
+      cities = [...new Set([city, ...cities])].slice(0, 5);
+      localStorage.setItem('recentCities', JSON.stringify(cities));
+      renderCityDropdown();
+    }
+
+    function renderCityDropdown() {
+      const cities = JSON.parse(localStorage.getItem('recentCities')) || [];
+      recentCitiesDropdown.innerHTML = '<option disabled selected>Select previously searched city</option>';
+      cities.forEach(city => {
+        const option = document.createElement('option');
+        option.value = city;
+        option.textContent = city;
+        recentCitiesDropdown.appendChild(option);
+      });
+    }
+
+    function renderCurrentWeather(data) {
+      const { location, current } = data;
+      weatherDisplay.innerHTML = `
+        <div class="space-y-2">
+          <h2 class="text-xl font-semibold">${location.name}, ${location.country}</h2>
+          <img src="https:${current.condition.icon}" alt="${current.condition.text}" class="mx-auto my-2" />
+          <p class="text-lg font-medium">${current.condition.text}</p>
+          <p>🌡️ ${current.temp_c} °C | 💧 ${current.humidity}% | 💨 ${current.wind_kph} kph</p>
+        </div>
+      `;
+    }
+
+    function renderForecast(forecastDays) {
+      forecastDisplay.innerHTML = forecastDays.map(day => {
+        const formattedDate = new Date(day.date).toLocaleDateString(undefined, {
+          weekday: 'short', month: 'short', day: 'numeric'
+        });
+        return `
+          <div class="bg-white border rounded-lg p-4 shadow-md hover:shadow-lg transition text-center">
+            <h3 class="font-semibold mb-2">${formattedDate}</h3>
+            <img src="https:${day.day.condition.icon}" alt="${day.day.condition.text}" class="mx-auto" />
+            <p class="text-sm">${day.day.condition.text}</p>
+            <p>⬆️ ${day.day.maxtemp_c} °C | ⬇️ ${day.day.mintemp_c} °C</p>
+            <p>💧 ${day.day.avghumidity}% | 💨 ${day.day.maxwind_kph} kph</p>
+          </div>
+        `;
+      }).join('');
+    }
+
+    async function getWeather(query) {
+      if (!query) return showError('Please enter a city name.');
+
+      try {
+        clearDisplay();
+        const currentRes = await fetch(`${baseUrl}/current.json?key=${apiKey}&q=${query}`);
+        const currentData = await currentRes.json();
+        renderCurrentWeather(currentData);
+
+        const forecastRes = await fetch(`${baseUrl}/forecast.json?key=${apiKey}&q=${query}&days=5`);
+        const forecastData = await forecastRes.json();
+        renderForecast(forecastData.forecast.forecastday);
+
+        saveCityToStorage(query);
+      } catch (err) {
+        showError('Unable to fetch weather data.');
+      }
+    }
+
+    async function getWeatherByLocation(lat, lon) {
+      try {
+        clearDisplay();
+        const currentRes = await fetch(`${baseUrl}/current.json?key=${apiKey}&q=${lat},${lon}`);
+        const currentData = await currentRes.json();
+        renderCurrentWeather(currentData);
+
+        const forecastRes = await fetch(`${baseUrl}/forecast.json?key=${apiKey}&q=${lat},${lon}&days=5`);
+        const forecastData = await forecastRes.json();
+        renderForecast(forecastData.forecast.forecastday);
+      } catch (err) {
+        showError('Could not retrieve weather for your location.');
+      }
+    }
+
+    document.getElementById('search-btn').addEventListener('click', () => {
+      getWeather(cityInput.value.trim());
+    });
+
+    document.getElementById('location-btn').addEventListener('click', () => {
+      if (!navigator.geolocation) return showError('Geolocation not supported.');
+      navigator.geolocation.getCurrentPosition(
+        pos => getWeatherByLocation(pos.coords.latitude, pos.coords.longitude),
+        () => showError('Location access denied or unavailable.')
+      );
+    });
+
+    cityInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') getWeather(cityInput.value.trim());
+    });
+
+    recentCitiesDropdown.addEventListener('change', (e) => {
+      getWeather(e.target.value);
+    });
+
+    // Initialize recent cities dropdown on load
+    renderCityDropdown();
+  </script>
+</body>
+</html>
